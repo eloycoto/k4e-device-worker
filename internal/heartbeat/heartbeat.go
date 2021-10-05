@@ -3,6 +3,8 @@ package heartbeat
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"git.sr.ht/~spc/go-log"
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
@@ -12,7 +14,6 @@ import (
 	workld "github.com/jakub-dzon/k4e-device-worker/internal/workload"
 	"github.com/jakub-dzon/k4e-operator/models"
 	pb "github.com/redhatinsights/yggdrasil/protocol"
-	"time"
 )
 
 type Heartbeat struct {
@@ -40,7 +41,11 @@ func (s *Heartbeat) Start() {
 }
 
 func (s *Heartbeat) getInterval(config models.DeviceConfiguration) int64 {
-	interval := config.Heartbeat.PeriodSeconds
+	var interval int64 = 60
+
+	if config.Heartbeat != nil {
+		interval = config.Heartbeat.PeriodSeconds
+	}
 	if interval <= 0 {
 		interval = 60
 	}
