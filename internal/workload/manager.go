@@ -3,13 +3,14 @@ package workload
 import (
 	"bytes"
 	"fmt"
-	"github.com/jakub-dzon/k4e-device-worker/internal/volumes"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jakub-dzon/k4e-device-worker/internal/volumes"
 
 	"git.sr.ht/~spc/go-log"
 	api2 "github.com/jakub-dzon/k4e-device-worker/internal/workload/api"
@@ -19,9 +20,9 @@ import (
 )
 
 type WorkloadManager struct {
-	manifestsDir string
-	volumesDir   string
-	workloads    *workloadWrapper
+	manifestsDir   string
+	volumesDir     string
+	workloads      workloadWrapper
 	managementLock sync.Locker
 }
 
@@ -39,14 +40,29 @@ func NewWorkloadManager(dataDir string) (*WorkloadManager, error) {
 	if err := os.MkdirAll(volumesDir, 0755); err != nil {
 		return nil, fmt.Errorf("cannot create directory: %w", err)
 	}
-	wrapper, err := newWorkloadWrapper(dataDir)
+
+	wrapper, err := newWorkloadInstance(dataDir)
 	if err != nil {
 		return nil, err
 	}
+
+	return NewWorkloadManagerWithParams(dataDir, wrapper)
+}
+
+func NewWorkloadManagerWithParams(dataDir string, ww workloadWrapper) (*WorkloadManager, error) {
+	manifestsDir := path.Join(dataDir, "manifests")
+	if err := os.MkdirAll(manifestsDir, 0755); err != nil {
+		return nil, fmt.Errorf("cannot create directory: %w", err)
+	}
+	volumesDir := path.Join(dataDir, "volumes")
+	if err := os.MkdirAll(volumesDir, 0755); err != nil {
+		return nil, fmt.Errorf("cannot create directory: %w", err)
+	}
+
 	manager := WorkloadManager{
-		manifestsDir: manifestsDir,
-		volumesDir:   volumesDir,
-		workloads:    wrapper,
+		manifestsDir:   manifestsDir,
+		volumesDir:     volumesDir,
+		workloads:      ww,
 		managementLock: &sync.Mutex{},
 	}
 	if err := manager.workloads.Init(); err != nil {
