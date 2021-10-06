@@ -2,7 +2,6 @@ package heartbeat_test
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/golang/mock/gomock"
 	"github.com/jakub-dzon/k4e-device-worker/internal/configuration"
@@ -57,17 +56,35 @@ var _ = Describe("Heartbeat", func() {
 		mockCtrl.Finish()
 	})
 
-	Context("PushInformation", func() {
-		FIt("Creates and send correct information", func() {
-			err := hb.PushInformation(context.TODO())
-			Expect(err).To(BeNil(), "Push information return an error")
-			var content models.Heartbeat
-			err = json.Unmarshal(client.latestData.Content, &content)
-			Expect(err).To(BeNil(), "Content is not valid Json format")
-
-			Expect(content.Status).To(Equal("up"))
-			Expect(content.Workloads).To(BeNil())
+	Context("HeartBeatData test", func() {
+		It("report empty workloads an up status", func() {
+			hbData := heartbeat.NewHeartbeatData(configManager, wkManager, hw, monitor)
+			heartbeatInfo := hbData.RetrieveInfo()
+			Expect(heartbeatInfo.Status).To(Equal("up"))
+			Expect(heartbeatInfo.Workloads).To(BeEmpty())
 		})
+
+		// @TODO Workloads need more work,because WorkloadManager.Update needs a
+		// lot more than a simple Name/spec
+		// It("report workload correctly", func() {
+		// 	cfg := models.DeviceConfigurationMessage{
+		// 		Configuration: &models.DeviceConfiguration{Heartbeat: &models.HeartbeatConfiguration{PeriodSeconds: 1}},
+		// 		DeviceID:      "",
+		// 		Version:       "",
+		// 		Workloads: []*models.Workload{{
+		// 			Data:          &models.DataConfiguration{},
+		// 			Name:          "test",
+		// 			Specification: "test",
+		// 		}},
+		// 	}
+
+		// 	wkManager.Update(cfg)
+		// 	hbData := heartbeat.NewHeartbeatData(configManager, wkManager, hw, monitor)
+		// 	heartbeatInfo := hbData.RetrieveInfo()
+		// 	Expect(heartbeatInfo.Status).To(Equal("up"))
+		// 	Expect(heartbeatInfo.Workloads).To(BeEmpty())
+		// })
+
 	})
 
 	Context("Start", func() {
@@ -113,7 +130,7 @@ var _ = Describe("Heartbeat", func() {
 })
 
 // We keep the latest send data to make sure that we validate the data sent to
-// the operator
+// the operator without sent at all
 type DispatcherInstance struct {
 	latestData *pb.Data
 }
