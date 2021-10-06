@@ -1,6 +1,9 @@
 package heartbeat_test
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/golang/mock/gomock"
 	"github.com/jakub-dzon/k4e-device-worker/internal/configuration"
 	"github.com/jakub-dzon/k4e-device-worker/internal/datatransfer"
@@ -8,6 +11,9 @@ import (
 	"github.com/jakub-dzon/k4e-device-worker/internal/heartbeat"
 	"github.com/jakub-dzon/k4e-device-worker/internal/workload"
 	"github.com/jakub-dzon/k4e-operator/models"
+	"google.golang.org/grpc"
+
+	pb "github.com/redhatinsights/yggdrasil/protocol"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -24,6 +30,7 @@ var _ = Describe("Heartbeat", func() {
 		monitor       = &datatransfer.Monitor{}
 		hb            = &heartbeat.Heartbeat{}
 		err           error
+		client        DispatcherInstance
 	)
 
 	BeforeEach(func() {
@@ -38,7 +45,8 @@ var _ = Describe("Heartbeat", func() {
 		Expect(err).To(BeNil(), "Cannot start the Workload Manager")
 
 		configManager = configuration.NewConfigurationManager(datadir)
-		hb = heartbeat.NewHeartbeatService(nil,
+		client = DispatcherInstance{}
+		hb = heartbeat.NewHeartbeatService(&client,
 			configManager,
 			wkManager,
 			hw,
@@ -47,6 +55,19 @@ var _ = Describe("Heartbeat", func() {
 
 	AfterEach(func() {
 		mockCtrl.Finish()
+	})
+
+	Context("PushInformation", func() {
+		FIt("Creates and send correct information", func() {
+			err := hb.PushInformation(context.TODO())
+			Expect(err).To(BeNil(), "Push information return an error")
+			var content models.Heartbeat
+			err = json.Unmarshal(client.latestData.Content, &content)
+			Expect(err).To(BeNil(), "Content is not valid Json format")
+
+			Expect(content.Status).To(Equal("up"))
+			Expect(content.Workloads).To(BeNil())
+		})
 	})
 
 	Context("Start", func() {
@@ -90,3 +111,18 @@ var _ = Describe("Heartbeat", func() {
 	})
 
 })
+
+// We keep the latest send data to make sure that we validate the data sent to
+// the operator
+type DispatcherInstance struct {
+	latestData *pb.Data
+}
+
+func (d *DispatcherInstance) Send(ctx context.Context, in *pb.Data, opts ...grpc.CallOption) (*pb.Receipt, error) {
+	d.latestData = in
+	return nil, nil
+}
+
+func (d *DispatcherInstance) Register(ctx context.Context, in *pb.RegistrationRequest, opts ...grpc.CallOption) (*pb.RegistrationResponse, error) {
+	return nil, nil
+}

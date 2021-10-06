@@ -56,6 +56,26 @@ func (s *Heartbeat) getInterval(config models.DeviceConfiguration) int64 {
 	return interval
 }
 
+func (s *Heartbeat) PushInformation(ctx context.Context) error {
+
+	// Create a data message to send back to the dispatcher.
+	heartbeatInfo := s.getHeartbeatInfo()
+
+	content, err := json.Marshal(heartbeatInfo)
+	if err != nil {
+		return err
+	}
+
+	data := &pb.Data{
+		MessageId: uuid.New().String(),
+		Content:   content,
+		Directive: "heartbeat",
+	}
+
+	_, err = s.dispatcherClient.Send(ctx, data)
+	return err
+}
+
 func (s *Heartbeat) initTicker(periodSeconds int64) {
 	ticker := time.NewTicker(time.Second * time.Duration(periodSeconds))
 	s.ticker = ticker
@@ -63,23 +83,9 @@ func (s *Heartbeat) initTicker(periodSeconds int64) {
 		for range ticker.C {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-
-			// Create a data message to send back to the dispatcher.
-			heartbeatInfo := s.getHeartbeatInfo()
-
-			content, err := json.Marshal(heartbeatInfo)
+			err := s.PushInformation(ctx)
 			if err != nil {
-				log.Errorf("Cannot marshal heartbeat info: %v", err)
-			}
-			data := &pb.Data{
-				MessageId: uuid.New().String(),
-				Content:   content,
-				Directive: "heartbeat",
-			}
-
-			// Call "Send"
-			if _, err := s.dispatcherClient.Send(ctx, data); err != nil {
-				log.Error(err)
+				log.Errorf("Heartbeat interval cannot send the data, err: %s", err)
 			}
 		}
 	}()
