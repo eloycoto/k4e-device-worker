@@ -22,7 +22,7 @@ import (
 type WorkloadManager struct {
 	manifestsDir   string
 	volumesDir     string
-	workloads      workloadWrapper
+	workloads      WorkloadWrapper
 	managementLock sync.Locker
 }
 
@@ -49,7 +49,7 @@ func NewWorkloadManager(dataDir string) (*WorkloadManager, error) {
 	return NewWorkloadManagerWithParams(dataDir, wrapper)
 }
 
-func NewWorkloadManagerWithParams(dataDir string, ww workloadWrapper) (*WorkloadManager, error) {
+func NewWorkloadManagerWithParams(dataDir string, ww WorkloadWrapper) (*WorkloadManager, error) {
 	manifestsDir := path.Join(dataDir, "manifests")
 	if err := os.MkdirAll(manifestsDir, 0755); err != nil {
 		return nil, fmt.Errorf("cannot create directory: %w", err)
