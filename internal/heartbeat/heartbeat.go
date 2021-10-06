@@ -40,6 +40,10 @@ func (s *Heartbeat) Start() {
 	s.initTicker(s.getInterval(s.configManager.GetDeviceConfiguration()))
 }
 
+func (s *Heartbeat) HasStarted() bool {
+	return s.ticker != nil
+}
+
 func (s *Heartbeat) getInterval(config models.DeviceConfiguration) int64 {
 	var interval int64 = 60
 

@@ -1,9 +1,11 @@
-package heartbeat
+package heartbeat_test
 
 import (
+	"github.com/golang/mock/gomock"
 	"github.com/jakub-dzon/k4e-device-worker/internal/configuration"
 	"github.com/jakub-dzon/k4e-device-worker/internal/datatransfer"
 	"github.com/jakub-dzon/k4e-device-worker/internal/hardware"
+	"github.com/jakub-dzon/k4e-device-worker/internal/heartbeat"
 	"github.com/jakub-dzon/k4e-device-worker/internal/workload"
 	"github.com/jakub-dzon/k4e-operator/models"
 
@@ -14,45 +16,51 @@ import (
 var _ = Describe("Heartbeat", func() {
 
 	var (
-		wk            = &workload.WorkloadManager{}
-		configManager = &configuration.Manager{}
+		datadir       = "/tmp"
+		mockCtrl      *gomock.Controller
+		wkManager     *workload.WorkloadManager
+		configManager *configuration.Manager
 		hw            = &hardware.Hardware{}
 		monitor       = &datatransfer.Monitor{}
-		hb            = &Heartbeat{}
+		hb            = &heartbeat.Heartbeat{}
 		err           error
 	)
 
 	BeforeEach(func() {
-		wk, err = workload.NewWorkloadManager("/tmp")
-		// This is expected to fail because the lack of postam unix socket.
-		Expect(err).To(Equal(nil))
-		configManager = configuration.NewConfigurationManager("/tmp/")
-		hb = NewHeartbeatService(nil,
+		mockCtrl = gomock.NewController(GinkgoT())
+		wkwMock := workload.NewMockWorkloadWrapper(mockCtrl)
+
+		wkwMock.EXPECT().Init().Return(nil).AnyTimes()
+		wkwMock.EXPECT().List().AnyTimes()
+		wkwMock.EXPECT().PersistConfiguration().AnyTimes()
+
+		wkManager, err = workload.NewWorkloadManagerWithParams(datadir, wkwMock)
+		Expect(err).To(BeNil(), "Cannot start the Workload Manager")
+
+		configManager = configuration.NewConfigurationManager(datadir)
+		hb = heartbeat.NewHeartbeatService(nil,
 			configManager,
-			wk,
+			wkManager,
 			hw,
 			monitor)
 	})
 
-	Context("getHeartbeatInfo", func() {
-		It("Fake test", func() {
-			hb.getHeartbeatInfo()
-			Expect(true).To(BeTrue())
-		})
+	AfterEach(func() {
+		mockCtrl.Finish()
 	})
 
 	Context("Start", func() {
 		It("Ticker is stopped if it's not started", func() {
-			Expect(hb.ticker).To(BeNil(), "Ticker is initialized when it shouldn't")
+			Expect(hb.HasStarted()).To(BeFalse(), "Ticker is initialized when it shouldn't")
 			hb.Start()
-			Expect(hb.ticker).NotTo(BeNil())
+			Expect(hb.HasStarted()).To(BeTrue())
 		})
 	})
 
 	Context("Update", func() {
 
 		It("Ticker is created", func() {
-			Expect(hb.ticker).To(BeNil(), "Ticker is initialized when it shouldn't")
+			Expect(hb.HasStarted()).To(BeFalse(), "Ticker is initialized when it shouldn't")
 
 			cfg := models.DeviceConfigurationMessage{
 				Configuration: &models.DeviceConfiguration{Heartbeat: &models.HeartbeatConfiguration{PeriodSeconds: 1}},
@@ -62,12 +70,11 @@ var _ = Describe("Heartbeat", func() {
 			}
 
 			Expect(hb.Update(cfg)).To(BeNil(), "Cannot update ticker")
-			Expect(hb.ticker).NotTo(BeNil())
+			Expect(hb.HasStarted()).To(BeTrue())
 		})
 
 		It("Ticker not created on invalid config", func() {
-			// This checks also hb.getInterval so Start is also tested
-			Expect(hb.ticker).To(BeNil(), "Ticker is initialized when it shouldn't")
+			Expect(hb.HasStarted()).To(BeFalse(), "Ticker is initialized when it shouldn't")
 
 			cfg := models.DeviceConfigurationMessage{
 				Configuration: &models.DeviceConfiguration{},
@@ -77,7 +84,7 @@ var _ = Describe("Heartbeat", func() {
 			}
 
 			Expect(hb.Update(cfg)).To(BeNil(), "Cannot update ticker")
-			Expect(hb.ticker).NotTo(BeNil())
+			Expect(hb.HasStarted()).To(BeTrue())
 		})
 
 	})
