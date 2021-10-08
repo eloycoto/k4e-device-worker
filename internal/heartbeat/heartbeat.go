@@ -97,14 +97,14 @@ func (s *Heartbeat) HasStarted() bool {
 	return s.ticker != nil
 }
 
-func (s *Heartbeat) Update(config models.DeviceConfigurationMessage) error {
+func (s *Heartbeat) Update(config models.DeviceConfigurationMessage) []error {
 	periodSeconds := s.getInterval(*config.Configuration)
 	log.Infof("Reconfiguring ticker with interval: %v", periodSeconds)
 	if s.ticker != nil {
 		s.ticker.Stop()
 	}
 	s.initTicker(periodSeconds)
-	return nil
+	return []error{}
 }
 
 func (s *Heartbeat) getInterval(config models.DeviceConfiguration) int64 {

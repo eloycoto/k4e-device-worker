@@ -77,23 +77,26 @@ func (w *WorkloadManager) GetExportedHostPath(workloadName string) string {
 	return volumes.HostPathVolumePath(w.volumesDir, workloadName)
 }
 
-func (w *WorkloadManager) Update(configuration models.DeviceConfigurationMessage) error {
+func (w *WorkloadManager) Update(configuration models.DeviceConfigurationMessage) []error {
 	w.managementLock.Lock()
 	defer w.managementLock.Unlock()
-
+	errors := []error{}
 	configuredWorkloadNameSet := make(map[string]struct{})
 	for _, workload := range configuration.Workloads {
 		log.Tracef("Deploying workload: %s", workload.Name)
 		configuredWorkloadNameSet[workload.Name] = struct{}{}
-		// TODO: change error handling from fail fast to best effort (deploy as many workloads as possible)
+
 		pod, err := w.toPod(workload)
 		if err != nil {
-			return err
+			errors = append(errors, fmt.Errorf(
+				"Cannot convert workload '%s' to pod, err: %v", workload.Name, err))
+			continue
 		}
 		manifestPath := w.getManifestPath(pod.Name)
 		podYaml, err := w.toPodYaml(pod)
 		if err != nil {
-			return nil
+			errors = append(errors, fmt.Errorf("Cannot create podYaml, err: %v", err))
+			continue
 		}
 		if !w.podModified(manifestPath, podYaml) {
 			log.Tracef("Pod '%s' definition is unchanged (%s)", workload.Name, manifestPath)
@@ -101,25 +104,31 @@ func (w *WorkloadManager) Update(configuration models.DeviceConfigurationMessage
 		}
 		err = w.storeManifest(manifestPath, podYaml)
 		if err != nil {
-			return err
+			errors = append(errors, fmt.Errorf(
+				"Cannot store manifest for workload '%s', err: %v", workload.Name, err))
+			continue
 		}
 
 		err = w.workloads.Remove(workload.Name)
 		if err != nil {
 			log.Errorf("Error removing workload: %v", err)
-			return err
+			errors = append(errors, fmt.Errorf("Error removing workload, err: %v", err))
+			continue
 		}
 		err = w.workloads.Run(pod, manifestPath)
 		if err != nil {
 			log.Errorf("Cannot run workload: %v", err)
-			return err
+			errors = append(errors, fmt.Errorf(
+				"Cannot run workload '%s', err: %v", workload.Name, err))
+			continue
 		}
 	}
 
 	deployedWorkloadByName, err := w.indexWorkloads()
 	if err != nil {
 		log.Errorf("Cannot get deployed workloads: %v", err)
-		return err
+		errors = append(errors, fmt.Errorf("Cannot get deployed workloads, err: %s", err))
+		return errors
 	}
 	// Remove any workloads that don't correspond to the configured ones
 	for name := range deployedWorkloadByName {
@@ -129,12 +138,15 @@ func (w *WorkloadManager) Update(configuration models.DeviceConfigurationMessage
 			err := os.Remove(manifestPath)
 			if err != nil {
 				if !os.IsNotExist(err) {
-					return err
+					errors = append(errors, fmt.Errorf("Cannot remove existing manifest workload, err: %s", err))
+					return errors
+					// return err
 				}
 			}
 
 			if err := w.workloads.Remove(name); err != nil {
-				return err
+				errors = append(errors, fmt.Errorf("Cannot remove stale workload name='%s', err: %s", name, err))
+				return errors
 			}
 			log.Infof("Workload %s removed", name)
 		}
@@ -143,7 +155,7 @@ func (w *WorkloadManager) Update(configuration models.DeviceConfigurationMessage
 	if configuration.WorkloadsMonitoringInterval > 0 {
 		w.ticker.Reset(time.Duration(configuration.WorkloadsMonitoringInterval))
 	}
-	return nil
+	return errors
 }
 
 func (w *WorkloadManager) initTicker(periodSeconds int64) {

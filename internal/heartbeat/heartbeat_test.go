@@ -101,10 +101,10 @@ var _ = Describe("Heartbeat", func() {
 			}
 
 			// when
-			err := hb.Update(cfg)
+			errors := hb.Update(cfg)
 
 			// then
-			Expect(err).NotTo(HaveOccurred(), "Cannot update ticker")
+			Expect(errors).To(HaveLen(0))
 			Expect(hb.HasStarted()).To(BeTrue())
 		})
 
@@ -121,10 +121,10 @@ var _ = Describe("Heartbeat", func() {
 			}
 
 			// when
-			err := hb.Update(cfg)
+			errors := hb.Update(cfg)
 
 			// then
-			Expect(err).NotTo(HaveOccurred(), "Cannot update ticker")
+			Expect(errors).To(HaveLen(0), "Cannot update ticker")
 			Expect(hb.HasStarted()).To(BeTrue())
 		})
 

@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+
 	"git.sr.ht/~spc/go-log"
 	configuration2 "github.com/jakub-dzon/k4e-device-worker/internal/configuration"
 	"github.com/jakub-dzon/k4e-operator/models"
@@ -28,9 +30,9 @@ func (s *deviceServer) Send(ctx context.Context, d *pb.Data) (*pb.Receipt, error
 		if err != nil {
 			log.Warnf("Cannot unmarshal message: %v", err)
 		}
-		err = s.configManager.Update(deviceConfigurationMessage)
-		if err != nil {
-			log.Warnf("Failed to process message: %v", err)
+		errors := s.configManager.Update(deviceConfigurationMessage)
+		if len(errors) > 0 {
+			log.Warnf("Failed to process message: %v", fmt.Sprintf("%s", errors))
 		}
 	}()
 
