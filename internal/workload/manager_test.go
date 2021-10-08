@@ -15,7 +15,7 @@ import (
 var _ = Describe("Manager", func() {
 
 	var (
-		datadir   = "/tmp"
+		datadir   string
 		mockCtrl  *gomock.Controller
 		wkManager *workload.WorkloadManager
 		wkwMock   *workload.MockWorkloadWrapper
@@ -96,7 +96,7 @@ var _ = Describe("Manager", func() {
 			Expect(errors).To(HaveLen(1))
 		})
 
-		It("Some worklodas failed", func() {
+		It("Some workloads failed", func() {
 			// So make sure that all worksloads tried to be executed, even if one
 			// failed.
 
@@ -169,6 +169,42 @@ var _ = Describe("Manager", func() {
 
 			// then
 			Expect(errors).To(HaveLen(0))
+		})
+	})
+
+	Context("ListWorkloads", func() {
+		It("Return the list correctly", func() {
+
+			// given
+			currentWorkloads := []api.WorkloadInfo{
+				{Id: "foo", Name: "foo", Status: "running"},
+			}
+			wkwMock.EXPECT().List().Return(currentWorkloads, nil).AnyTimes()
+
+			// when
+
+			list, err := wkManager.ListWorkloads()
+
+			// then
+
+			Expect(list).To(Equal(currentWorkloads))
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("Return error correctly", func() {
+
+			// given
+			currentWorkloads := []api.WorkloadInfo{}
+			wkwMock.EXPECT().List().Return(currentWorkloads, fmt.Errorf("Invalid")).AnyTimes()
+
+			// when
+
+			list, err := wkManager.ListWorkloads()
+
+			// then
+
+			Expect(list).To(Equal(currentWorkloads))
+			Expect(err).To(HaveOccurred())
 		})
 
 	})
