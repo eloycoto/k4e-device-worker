@@ -33,11 +33,6 @@ func NewMonitor(workloadsManager *workload.WorkloadManager, configManager *confi
 		lastSuccessfulSyncTimes:     make(map[string]time.Time),
 		lastSuccessfulSyncTimesLock: sync.RWMutex{},
 	}
-	err := monitor.InitStorage()
-	if err != nil {
-		log.Errorf("Cannot init the storage: %s", err)
-		return nil
-	}
 	return &monitor
 }
 
@@ -140,7 +135,7 @@ func (m *Monitor) InitStorage() error {
 	if err != nil {
 		return err
 	}
-	m.fsSync = s3sync
+	m.SetStorage(s3sync)
 	return nil
 }
 
@@ -219,4 +214,14 @@ func (m *Monitor) storeLastUpdateTime(workloadName string) {
 	m.lastSuccessfulSyncTimesLock.Lock()
 	defer m.lastSuccessfulSyncTimesLock.Unlock()
 	m.lastSuccessfulSyncTimes[workloadName] = time.Now()
+}
+
+func (m *Monitor) Update(configuration models.DeviceConfigurationMessage) error {
+	storage := configuration.Configuration.Storage
+	s3sync, err := s3.NewSync(*storage.S3)
+	if err != nil {
+		return fmt.Errorf("Observer update failed: %s", err)
+	}
+	m.SetStorage(s3sync)
+	return nil
 }
