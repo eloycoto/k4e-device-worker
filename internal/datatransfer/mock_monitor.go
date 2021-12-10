@@ -4,6 +4,7 @@
 // Package datatransfer is a generated GoMock package.
 package datatransfer
 
+//asdasd
 import (
 	reflect "reflect"
 

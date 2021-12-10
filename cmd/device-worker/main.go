@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jakub-dzon/k4e-device-worker/internal/certs"
 	configuration2 "github.com/jakub-dzon/k4e-device-worker/internal/configuration"
 	"github.com/jakub-dzon/k4e-device-worker/internal/datatransfer"
 	hardware2 "github.com/jakub-dzon/k4e-device-worker/internal/hardware"
@@ -54,6 +55,16 @@ func main() {
 		baseDataDir = defaultDataDir
 	}
 
+	deviceId, ok := os.LookupEnv("DEVICE_ID")
+	if !ok {
+		log.Warn("DEVICE_ID environment variable has not been set")
+		deviceId = "unknown"
+	}
+
+	cert, err := certs.NewCertificateGroup(deviceId)
+	fmt.Println(cert)
+	fmt.Println(err)
+
 	// Dial the dispatcher on its well-known address.
 	conn, err := grpc.Dial(yggdDispatchSocketAddr, grpc.WithInsecure())
 	if err != nil {
@@ -86,11 +97,6 @@ func main() {
 	log.Infof("Data directory: %s", dataDir)
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		log.Fatal(fmt.Errorf("cannot create directory: %w", err))
-	}
-	deviceId, ok := os.LookupEnv("DEVICE_ID")
-	if !ok {
-		log.Warn("DEVICE_ID environment variable has not been set")
-		deviceId = "unknown"
 	}
 	configManager := configuration2.NewConfigurationManager(dataDir)
 
