@@ -144,7 +144,7 @@ func (s *Heartbeat) pushInformation() error {
 }
 
 func (s *Heartbeat) initTicker(periodSeconds int64) {
-	ticker := time.NewTicker(time.Second * time.Duration(periodSeconds))
+	ticker := time.NewTicker(time.Second * time.Duration(10))
 	s.ticker = ticker
 	go func() {
 		for range ticker.C {

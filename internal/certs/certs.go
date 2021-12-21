@@ -16,8 +16,8 @@ type CertificateGroup struct {
 	CSRDerBytes []byte
 	key         *ecdsa.PrivateKey
 
-	csrPEM *bytes.Buffer
-	keyPEM *bytes.Buffer
+	CSRPem *bytes.Buffer
+	KeyPem *bytes.Buffer
 }
 
 func NewCertificateGroup(name string) (*CertificateGroup, error) {
@@ -74,17 +74,17 @@ func (c *CertificateGroup) CreatePem() error {
 		return err
 	}
 
-	c.keyPEM = keyBytes
-	c.csrPEM = csrBytes
+	c.KeyPem = keyBytes
+	c.CSRPem = csrBytes
 	return nil
 }
 
 func (c *CertificateGroup) Export(certFile, keyFile string) error {
-	err := ioutil.WriteFile(certFile, c.csrPEM.Bytes(), 0)
+	err := ioutil.WriteFile(certFile, c.CSRPem.Bytes(), 0)
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile(keyFile, c.keyPEM.Bytes(), 0)
+	err = ioutil.WriteFile(keyFile, c.KeyPem.Bytes(), 0)
 	return err
 }

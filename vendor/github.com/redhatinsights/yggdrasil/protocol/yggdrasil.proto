@@ -17,6 +17,9 @@ service Worker {
     // Send is called by the dispatcher to send data to a worker.
     rpc Send (Data) returns (Receipt) {}
 
+    // Send is called by the dispatcher to send data to a worker.
+    rpc Events (APIResponse) returns (Empty) {}
+
     // Disconnect is called by an operator to handle device deregistration gracefully
     rpc Disconnect (Empty) returns (DisconnectResponse) {}
 }
@@ -66,6 +69,16 @@ message Data {
 
     // The destination of the message.
     string directive = 5;
+}
+
+message APIResponse {
+  int64 status_code = 1;
+
+  string body = 2;
+
+  string directive = 3;
+
+  map<string, string> metadata = 4;
 }
 
 // A Receipt message is sent as a successful response to a Send method.

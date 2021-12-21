@@ -15,17 +15,20 @@ type deviceServer struct {
 	pb.UnimplementedWorkerServer
 	configManager       *configuration2.Manager
 	registrationManager *registration2.Registration
+	deviceID            string
 }
 
-func NewDeviceServer(configManager *configuration2.Manager, registrationManager *registration2.Registration) *deviceServer {
+func NewDeviceServer(configManager *configuration2.Manager, registrationManager *registration2.Registration, deviceID string) *deviceServer {
 	return &deviceServer{
 		configManager:       configManager,
 		registrationManager: registrationManager,
+		deviceID:            deviceID,
 	}
 }
 
 // Send implements the "Send" method of the Worker gRPC service.
 func (s *deviceServer) Send(ctx context.Context, d *pb.Data) (*pb.Receipt, error) {
+
 	go func() {
 		deviceConfigurationMessage := models.DeviceConfigurationMessage{}
 		err := json.Unmarshal(d.Content, &deviceConfigurationMessage)
@@ -40,6 +43,30 @@ func (s *deviceServer) Send(ctx context.Context, d *pb.Data) (*pb.Receipt, error
 
 	// Respond to the start request that the work was accepted.
 	return &pb.Receipt{}, nil
+}
+
+// Send implements the "Send" method of the Worker gRPC service.
+func (s *deviceServer) Events(ctx context.Context, data *pb.APIResponse) (*pb.Empty, error) {
+	// Got 401, registation is not send, so create a new Registration request to the operator.
+	if data.StatusCode == 401 {
+		s.registrationManager.RegisterDevice()
+	}
+
+	if data.StatusCode == 200 {
+		log.Errorf("--------------------------------")
+		log.Errorf("--------------------------------")
+		log.Errorf("--------------------------------")
+		log.Errorf("--------------------------------")
+		log.Errorf("--------------------------------")
+		log.Errorf("STATUS CODE %+v", data.StatusCode)
+		log.Errorf("--------------------------------")
+		log.Errorf("--------------------------------")
+		log.Errorf("--------------------------------")
+		log.Errorf("--------------------------------")
+		log.Errorf("--------------------------------")
+	}
+	log.Errorf("Got event here %+v", data)
+	return nil, nil
 }
 
 // Disconnect implements the "Disconnect" method of the Worker gRPC service.

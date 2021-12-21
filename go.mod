@@ -24,7 +24,8 @@ require (
 replace (
 	github.com/containers/buildah => github.com/containers/buildah v1.23.1
 	github.com/containers/common => github.com/containers/common v0.46.1-0.20211026130826-7abfd453c86f
-	github.com/redhatinsights/yggdrasil => github.com/jakub-dzon/yggdrasil v0.0.0-20211012071055-27d969343f4e
+	github.com/redhatinsights/yggdrasil =>  /home/eloy/dev/upstream/jakub-dzon/yggdrasil
+	github.com/jakub-dzon/k4e-operator => /home/eloy/dev/upstream/jakub-dzon/k4e-operator
 	k8s.io/client-go => k8s.io/client-go v0.21.0
 	sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20201022175424-d30c7a274820
 	sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20201016155852-4090a6970205

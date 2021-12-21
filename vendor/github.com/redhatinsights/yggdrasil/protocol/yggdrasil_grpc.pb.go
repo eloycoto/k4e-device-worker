@@ -148,6 +148,8 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 type WorkerClient interface {
 	// Send is called by the dispatcher to send data to a worker.
 	Send(ctx context.Context, in *Data, opts ...grpc.CallOption) (*Receipt, error)
+	// Send is called by the dispatcher to send data to a worker.
+	Events(ctx context.Context, in *APIResponse, opts ...grpc.CallOption) (*Empty, error)
 	// Disconnect is called by an operator to handle device deregistration gracefully
 	Disconnect(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*DisconnectResponse, error)
 }
@@ -169,6 +171,15 @@ func (c *workerClient) Send(ctx context.Context, in *Data, opts ...grpc.CallOpti
 	return out, nil
 }
 
+func (c *workerClient) Events(ctx context.Context, in *APIResponse, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/yggdrasil.Worker/Events", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *workerClient) Disconnect(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*DisconnectResponse, error) {
 	out := new(DisconnectResponse)
 	err := c.cc.Invoke(ctx, "/yggdrasil.Worker/Disconnect", in, out, opts...)
@@ -184,6 +195,8 @@ func (c *workerClient) Disconnect(ctx context.Context, in *Empty, opts ...grpc.C
 type WorkerServer interface {
 	// Send is called by the dispatcher to send data to a worker.
 	Send(context.Context, *Data) (*Receipt, error)
+	// Send is called by the dispatcher to send data to a worker.
+	Events(context.Context, *APIResponse) (*Empty, error)
 	// Disconnect is called by an operator to handle device deregistration gracefully
 	Disconnect(context.Context, *Empty) (*DisconnectResponse, error)
 	mustEmbedUnimplementedWorkerServer()
@@ -195,6 +208,9 @@ type UnimplementedWorkerServer struct {
 
 func (UnimplementedWorkerServer) Send(context.Context, *Data) (*Receipt, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Send not implemented")
+}
+func (UnimplementedWorkerServer) Events(context.Context, *APIResponse) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Events not implemented")
 }
 func (UnimplementedWorkerServer) Disconnect(context.Context, *Empty) (*DisconnectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Disconnect not implemented")
@@ -230,6 +246,24 @@ func _Worker_Send_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Worker_Events_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(APIResponse)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerServer).Events(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/yggdrasil.Worker/Events",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerServer).Events(ctx, req.(*APIResponse))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Worker_Disconnect_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Empty)
 	if err := dec(in); err != nil {
@@ -258,6 +292,10 @@ var Worker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Send",
 			Handler:    _Worker_Send_Handler,
+		},
+		{
+			MethodName: "Events",
+			Handler:    _Worker_Events_Handler,
 		},
 		{
 			MethodName: "Disconnect",

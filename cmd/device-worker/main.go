@@ -33,7 +33,6 @@ const (
 
 func main() {
 	log.SetFlags(0) // No datatime, is already done on yggradsil server
-
 	logLevel, ok := os.LookupEnv("LOG_LEVEL")
 	if !ok {
 		logLevel = "ERROR"
@@ -43,6 +42,13 @@ func main() {
 		level = log.LevelError
 	}
 	log.SetLevel(level)
+
+	deviceId, ok := os.LookupEnv("DEVICE_ID")
+	if !ok {
+		log.Warn("DEVICE_ID environment variable has not been set")
+		deviceId = "unknown"
+	}
+
 	// Get initialization values from the environment.
 	yggdDispatchSocketAddr, ok = os.LookupEnv("YGG_SOCKET_ADDR")
 	if !ok {
@@ -55,16 +61,6 @@ func main() {
 		baseDataDir = defaultDataDir
 	}
 
-	deviceId, ok := os.LookupEnv("DEVICE_ID")
-	if !ok {
-		log.Warn("DEVICE_ID environment variable has not been set")
-		deviceId = "unknown"
-	}
-
-	cert, err := certs.NewCertificateGroup(deviceId)
-	fmt.Println(cert)
-	fmt.Println(err)
-
 	// Dial the dispatcher on its well-known address.
 	conn, err := grpc.Dial(yggdDispatchSocketAddr, grpc.WithInsecure())
 	if err != nil {
@@ -76,9 +72,11 @@ func main() {
 	dispatcherClient := pb.NewDispatcherClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-
 	// Register as a handler of the "device" type.
-	r, err := dispatcherClient.Register(ctx, &pb.RegistrationRequest{Handler: "device", Pid: int64(os.Getpid())})
+	r, err := dispatcherClient.Register(ctx, &pb.RegistrationRequest{
+		Handler: "device",
+		Pid:     int64(os.Getpid()),
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -91,6 +89,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot start listening on %s err: %v", r.GetAddress(), err)
 	}
+
+	cert, err := certs.NewCertificateGroup(deviceId)
+	fmt.Printf("\n%s\n", cert.CSRPem)
+	fmt.Println(err)
 
 	// Register as a Worker service with gRPC and start accepting connections.
 	dataDir := path.Join(baseDataDir, "device")
@@ -120,7 +122,7 @@ func main() {
 	reg := registration2.NewRegistration(&hw, &deviceOs, dispatcherClient, configManager, hbs, wl, dataMonitor)
 
 	s := grpc.NewServer()
-	pb.RegisterWorkerServer(s, server.NewDeviceServer(configManager, reg))
+	pb.RegisterWorkerServer(s, server.NewDeviceServer(configManager, reg, deviceId))
 	if !configManager.IsInitialConfig() {
 		hbs.Start()
 	} else {
