@@ -41,9 +41,6 @@ func NewMonitor(workloadsManager *workload.WorkloadManager, configManager *confi
 func (m *Monitor) Start() {
 	// Made this to force the config load in case there is no storage defined yet
 	// via Update() method.
-	if err := m.ForceUpdate(); err != nil {
-		log.Errorf("cannot force-update datatransfer monitor. DeviceID: %s; err: %v", m.workloads.GetDeviceID(), err)
-	}
 	go func() {
 		for range m.ticker.C {
 			m.syncPaths()
@@ -72,7 +69,7 @@ func (m *Monitor) GetLastSuccessfulSyncTime(workloadName string) *time.Time {
 // WorkloadStarted is defined to satisfied the workload.Observer Interface, do
 // nothing.
 func (m *Monitor) WorkloadStarted(workloadName string, report []*podman.PodReport) {
-	return
+  return
 }
 
 func (m *Monitor) WorkloadRemoved(workloadName string) {
@@ -240,11 +237,8 @@ func (m *Monitor) storeLastUpdateTime(workloadName string) {
 	m.lastSuccessfulSyncTimes[workloadName] = time.Now()
 }
 
-func (m *Monitor) ForceUpdate() error {
-	config := m.config.GetDeviceConfiguration()
-	return m.Update(models.DeviceConfigurationMessage{
-		Configuration: &config,
-	})
+func (m *Monitor) Init(configuration models.DeviceConfigurationMessage) error {
+	return m.Update(configuration)
 }
 
 func (m *Monitor) Update(configuration models.DeviceConfigurationMessage) error {

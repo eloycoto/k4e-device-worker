@@ -39,6 +39,10 @@ func NewSystemMetrics(daemon MetricsDaemon, config DeviceConfigurationProvider) 
 	return sm
 }
 
+func (sm *SystemMetrics) Init(config models.DeviceConfigurationMessage) error {
+	return sm.Update(config)
+}
+
 func (sm *SystemMetrics) Update(config models.DeviceConfigurationMessage) error {
 	newConfiguration := expectedConfiguration(*config.Configuration)
 	latestConfig := sm.latestConfig.Load()
