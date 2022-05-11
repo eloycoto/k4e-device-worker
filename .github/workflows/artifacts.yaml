@@ -2,7 +2,7 @@
 name: RPM build
 on:
   push:
-    branches: [ main ]
+    branches: [ main, RPMChanges ]
 jobs:
   rpm:
     name: Submit a build from Fedora container
@@ -28,6 +28,7 @@ jobs:
       - name: Build the source RPM
         run: |
           make rpm-tarball
+          tar -ztvf flotta-agent-1.0.tar.gz
           make rpm-src
 
       - name: Submit the build by uploading the source RPM
