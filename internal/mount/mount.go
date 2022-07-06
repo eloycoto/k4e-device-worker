@@ -97,7 +97,8 @@ func (m *Manager) Update(config models.DeviceConfigurationMessage) error {
 // - directory exists
 // - type of the mount is found in /etc/filesystems
 func (m *Manager) isValid(mount *models.Mount) error {
-	if strings.Contains(m.filesystems, mount.Type) {
+
+	if !strings.Contains(m.filesystems, mount.Type) {
 		return fmt.Errorf("mount type not supported")
 	}
 
