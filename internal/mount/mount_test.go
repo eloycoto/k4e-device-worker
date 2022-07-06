@@ -37,21 +37,25 @@ var _ = Describe("Mount", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			depMock = &util.MockIDependencies{}
-			devFolder = "/dev/foodev"
+
+			devFolder, err = ioutil.TempDir("/tmp/", "dev")
+			Expect(err).NotTo(HaveOccurred())
+
+			// devFolder = "/dev/foodev"
 
 			Expect(os.RemoveAll(devFolder)).To(BeNil())
 			Expect(os.MkdirAll(devFolder, os.ModePerm)).NotTo(HaveOccurred())
 
 			blockDevicePath = fmt.Sprintf("%s/blockdevice", devFolder)
-			Expect(unix.Mknod(blockDevicePath, syscall.S_IFBLK|syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IWGRP, int(unix.Mkdev(7, 0)))).
+			Expect(unix.Mknod(blockDevicePath, syscall.S_IFBLK|syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IWGRP, int(unix.Mkdev(7, 1)))).
 				NotTo(HaveOccurred())
 
 			otherBlockDevice = fmt.Sprintf("%s/otherblockdevice", devFolder)
-			Expect(unix.Mknod(otherBlockDevice, syscall.S_IFBLK|uint32(os.FileMode(0660)), int(unix.Mkdev(7, 0)))).
+			Expect(unix.Mknod(otherBlockDevice, syscall.S_IFBLK|uint32(os.FileMode(0660)), int(unix.Mkdev(7, 2)))).
 				NotTo(HaveOccurred())
 
 			charDevicePath = fmt.Sprintf("%s/chardevice", devFolder)
-			Expect(unix.Mknod(charDevicePath, syscall.S_IFCHR|uint32(os.FileMode(0660)), int(unix.Mkdev(3, 1)))).
+			Expect(unix.Mknod(charDevicePath, syscall.S_IFCHR|uint32(os.FileMode(0660)), int(unix.Mkdev(4, 1)))).
 				NotTo(HaveOccurred())
 		})
 
@@ -63,11 +67,11 @@ var _ = Describe("Mount", func() {
 
 		})
 
-		FIt("mount block device without error", func() {
+		It("mount block device without error", func() {
 			// given
 			dep := util.NewDependencies("/")
 			mount := models.Mount{
-				Device:    "/tmp/block_device",
+				Device:    blockDevicePath,
 				Directory: tmpFolder,
 				Type:      "ext4",
 			}
@@ -126,7 +130,7 @@ var _ = Describe("Mount", func() {
 			Expect(err).To(BeNil())
 
 			// when
-			Expect(mountManager.Update(configuration)).To(BeNil())
+			Expect(mountManager.Update(configuration)).To(HaveOccurred())
 
 			// then
 			_, mounts, err := mm.GetMounts(dep)
