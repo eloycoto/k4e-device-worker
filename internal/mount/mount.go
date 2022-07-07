@@ -58,10 +58,12 @@ func (m *Manager) Update(config models.DeviceConfigurationMessage) error {
 	var merr *multierror.Error
 	for _, mm := range config.Configuration.Mounts {
 		if _, found := alreadyMounted[mm.Directory]; found {
-			log.Infof("Directory '%s' has already been mounted. Skipping..", mm.Directory)
+			errf := fmt.Errorf("Directory '%s' has already been mounted. Skipping..", mm.Directory)
+			merr = multierror.Append(merr, errf)
+			log.Info(errf)
 			continue
 		}
-		fmt.Println("---------------------------------->1")
+
 		if err := m.isValid(mm); err != nil {
 			errf := fmt.Errorf("Mount configuration '%+v' not valid: %s", mm, err)
 			merr = multierror.Append(merr, errf)
@@ -69,7 +71,6 @@ func (m *Manager) Update(config models.DeviceConfigurationMessage) error {
 			continue
 		}
 
-		fmt.Println("---------------------------------->2")
 		// if the directory is mounted (not in the current call) and the configuration is different
 		// try to umount it first and than mount it with the new configuration.
 		if c, found := currentMounts[mm.Directory]; found {
@@ -141,7 +142,12 @@ func isEqual(mount *models.Mount, other *models.Mount) bool {
 
 // TODO Question: what flags should be passed here?
 func mount(m *models.Mount) error {
-	return unix.Mount(m.Device, m.Directory, m.Type, uintptr(0), m.Options)
+	err := unix.Mount(m.Device, m.Directory, m.Type, uintptr(0), m.Options)
+	fmt.Println("**********************************************")
+	fmt.Println(err)
+	fmt.Println("**********************************************")
+	fmt.Println("**********************************************")
+	return err
 }
 
 // TODO: Question: should we force it?

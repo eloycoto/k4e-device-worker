@@ -1,37 +1,78 @@
 package mount_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"strings"
 	"syscall"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gexec"
+
 	"github.com/openshift/assisted-installer-agent/src/util"
 	mm "github.com/project-flotta/flotta-device-worker/internal/mount"
 	"github.com/project-flotta/flotta-operator/models"
 	"golang.org/x/sys/unix"
 )
 
-var _ = Describe("Mount", func() {
+var _ = Describe("Mount", Ordered, func() {
 	var (
-		depMock          *util.MockIDependencies
-		blockDevicePath  string
-		otherBlockDevice string
-		charDevicePath   string
-		devFolder        string
-		tmpFolder        string
-		err              error
+		depMock        *util.MockIDependencies
+		charDevicePath string
+		devFolder      string
+		tmpFolder      string
+		err            error
+
+		deviceFolder string
+		loopDevices  []string
+
+		mountManager *mm.Manager
+
+		dep util.IDependencies
 	)
 
-	// Creating block-device
-	// sudo mknod block_device b 89 1
-	// creating char-device
-	// sudo mknod block_device c 89 1
+	execCommand := func(cmd string) string {
+		split := strings.Split(cmd, " ")
+		command := exec.Command(split[0], split[1:]...)
+		session, err := gexec.Start(command, new(bytes.Buffer), new(bytes.Buffer))
+		Expect(err).ShouldNot(HaveOccurred())
+		Eventually(session).Should(gexec.Exit(0))
+		return string(session.Out.Contents())
+	}
+
+	BeforeAll(func() {
+
+		deviceFolder, err = ioutil.TempDir("/tmp/", "lopdevices")
+
+		Expect(err).NotTo(HaveOccurred())
+		execCommand(fmt.Sprintf("dd if=/dev/zero of=/%s/image bs=1M count=128", deviceFolder))
+		execCommand(fmt.Sprintf("mkfs.ext4 /%s/image", deviceFolder))
+
+		deviceID := execCommand(fmt.Sprintf("losetup -f --show %s/image", deviceFolder))
+		loopDevices = append(loopDevices, strings.Replace(deviceID, "\n", "", -1))
+
+		secondDeviceID := execCommand(fmt.Sprintf("losetup -f --show %s/image", deviceFolder))
+		loopDevices = append(loopDevices, strings.Replace(secondDeviceID, "\n", "", -1))
+	})
+
+	AfterAll(func() {
+		for _, device := range loopDevices {
+			execCommand(fmt.Sprintf("losetup -d %s", device))
+		}
+		Expect(os.RemoveAll(tmpFolder)).ShouldNot(HaveOccurred())
+	})
 
 	Context("Mount block device", func() {
 		BeforeEach(func() {
+
+			dep = util.NewDependencies("/")
+
+			mountManager, err = mm.New()
+			Expect(err).NotTo(HaveOccurred())
 
 			tmpFolder, err = ioutil.TempDir("/tmp/", "mountfile")
 			Expect(err).NotTo(HaveOccurred())
@@ -41,18 +82,8 @@ var _ = Describe("Mount", func() {
 			devFolder, err = ioutil.TempDir("/tmp/", "dev")
 			Expect(err).NotTo(HaveOccurred())
 
-			// devFolder = "/dev/foodev"
-
 			Expect(os.RemoveAll(devFolder)).To(BeNil())
 			Expect(os.MkdirAll(devFolder, os.ModePerm)).NotTo(HaveOccurred())
-
-			blockDevicePath = fmt.Sprintf("%s/blockdevice", devFolder)
-			Expect(unix.Mknod(blockDevicePath, syscall.S_IFBLK|syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IWGRP, int(unix.Mkdev(7, 1)))).
-				NotTo(HaveOccurred())
-
-			otherBlockDevice = fmt.Sprintf("%s/otherblockdevice", devFolder)
-			Expect(unix.Mknod(otherBlockDevice, syscall.S_IFBLK|uint32(os.FileMode(0660)), int(unix.Mkdev(7, 2)))).
-				NotTo(HaveOccurred())
 
 			charDevicePath = fmt.Sprintf("%s/chardevice", devFolder)
 			Expect(unix.Mknod(charDevicePath, syscall.S_IFCHR|uint32(os.FileMode(0660)), int(unix.Mkdev(4, 1)))).
@@ -60,18 +91,22 @@ var _ = Describe("Mount", func() {
 		})
 
 		AfterEach(func() {
+			// We check if tmpFolder is mount and if so, we force unmount it
+			_, mountMap, err := mm.GetMounts(dep)
+			Expect(err).NotTo(HaveOccurred())
+			if mountVal, found := mountMap[tmpFolder]; found {
+				_ = unix.Unmount(mountVal.Directory, unix.MNT_FORCE)
+			}
+
 			depMock.AssertExpectations(GinkgoT())
 
-			// Expect(os.RemoveAll(devFolder)).To(BeNil())
 			Expect(os.RemoveAll(tmpFolder)).To(BeNil())
-
 		})
 
 		It("mount block device without error", func() {
 			// given
-			dep := util.NewDependencies("/")
 			mount := models.Mount{
-				Device:    blockDevicePath,
+				Device:    loopDevices[0],
 				Directory: tmpFolder,
 				Type:      "ext4",
 			}
@@ -82,41 +117,21 @@ var _ = Describe("Mount", func() {
 				},
 			}
 
-			mountManager, err := mm.New()
-			Expect(err).To(BeNil())
-
 			// when
 			Expect(mountManager.Update(configuration)).NotTo(HaveOccurred())
 
 			// then
-			a, mounts, err := mm.GetMounts(dep)
+			_, mounts, err := mm.GetMounts(dep)
 			Expect(err).NotTo(HaveOccurred())
 
-			debug := func() {
-				fmt.Printf("A =%+v\n", a)
-				fmt.Printf("Mounts =%+v\n", mounts)
-
-				for key := range mounts {
-					fmt.Println("Key--->", key)
-				}
-				fmt.Println(mount.Directory)
-
-				fmt.Printf("Err =%+v\n", err)
-			}
-			debug()
-
-			_, found := mounts[mount.Directory]
-			Expect(found).To(BeTrue())
-
-			Expect(unix.Unmount(mount.Device, 0)).NotTo(HaveOccurred())
+			Expect(mounts).To(HaveKey(mount.Directory))
 		})
 
 		It("Don't try to mount char devices", func() {
 			// given
-			dep := util.NewDependencies("/")
 			mount := models.Mount{
 				Device:    charDevicePath,
-				Directory: "/mnt",
+				Directory: tmpFolder,
 				Type:      "ext4",
 			}
 
@@ -125,9 +140,6 @@ var _ = Describe("Mount", func() {
 					Mounts: []*models.Mount{&mount},
 				},
 			}
-
-			mountManager, err := mm.New()
-			Expect(err).To(BeNil())
 
 			// when
 			Expect(mountManager.Update(configuration)).To(HaveOccurred())
@@ -143,10 +155,9 @@ var _ = Describe("Mount", func() {
 
 		It("Unmount a device before mounting again", func() {
 			// given
-			dep := util.NewDependencies("/")
 			mount := models.Mount{
-				Device:    blockDevicePath,
-				Directory: "/mnt",
+				Device:    loopDevices[0],
+				Directory: tmpFolder,
 				Type:      "ext4",
 			}
 
@@ -156,44 +167,41 @@ var _ = Describe("Mount", func() {
 				},
 			}
 
-			mountManager, err := mm.New()
-			Expect(err).To(BeNil())
-
 			// when
-			Expect(mountManager.Update(configuration)).To(BeNil())
+			Expect(mountManager.Update(configuration)).NotTo(HaveOccurred())
 
 			// try to mount the other block device on the same folder
 			mount = models.Mount{
-				Device:    otherBlockDevice,
-				Directory: "/mnt",
+				Device:    loopDevices[1],
+				Directory: tmpFolder,
 				Type:      "ext4",
 			}
 
 			// when
-			Expect(mountManager.Update(configuration)).To(BeNil())
+			Expect(mountManager.Update(configuration)).NotTo(HaveOccurred())
 
 			// then
 			_, mounts, err := mm.GetMounts(dep)
-			Expect(err).To(BeNil())
+			Expect(err).NotTo(HaveOccurred())
 
 			// we expect not to found the mount here
-			m, found := mounts[mount.Directory]
-			Expect(found).To(BeFalse())
-			Expect(m.Device).To(Equal(otherBlockDevice))
+
+			Expect(mounts).To(HaveKey(mount.Directory))
+			m, _ := mounts[mount.Directory]
+			Expect(m.Device).To(Equal(loopDevices[1]))
 		})
 
-		It("Cannot mount on a folder twice", func() {
+		FIt("Cannot mount on a folder twice", func() {
 			// given
-			dep := util.NewDependencies("/")
 			mounts := []*models.Mount{
 				{
-					Device:    blockDevicePath,
-					Directory: "/mnt",
+					Device:    loopDevices[0],
+					Directory: tmpFolder,
 					Type:      "ext4",
 				},
 				{
-					Device:    otherBlockDevice,
-					Directory: "/mnt",
+					Device:    loopDevices[1],
+					Directory: tmpFolder,
 					Type:      "ext4",
 				},
 			}
@@ -204,34 +212,31 @@ var _ = Describe("Mount", func() {
 				},
 			}
 
-			mountManager, err := mm.New()
-			Expect(err).To(BeNil())
-
 			// when
-			Expect(mountManager.Update(configuration)).To(BeNil())
+			Expect(mountManager.Update(configuration)).To(HaveOccurred())
 
 			// then
 			_, mountMap, err := mm.GetMounts(dep)
-			Expect(err).To(BeNil())
+			Expect(err).NotTo(HaveOccurred())
 
-			// we expect not to found the mount here
-			m, found := mountMap["/mnt"]
-			Expect(found).To(BeFalse())
-			Expect(m.Device).To(Equal(blockDevicePath))
+			Expect(mountMap).To(HaveKey(tmpFolder))
+
+			m, found := mountMap[tmpFolder]
+			Expect(found).To(BeTrue())
+			Expect(m.Device).To(Equal(loopDevices[0]))
 		})
 
 		It("Ignore non valid mount configuration", func() {
 			// given
-			dep := util.NewDependencies("/")
 			mounts := []*models.Mount{
 				{
 					Device:    charDevicePath,
-					Directory: "/mnt",
+					Directory: tmpFolder,
 					Type:      "ext4",
 				},
 				{
-					Device:    otherBlockDevice,
-					Directory: "/mnt",
+					Device:    loopDevices[0],
+					Directory: tmpFolder,
 					Type:      "ext4",
 				},
 			}
@@ -242,20 +247,18 @@ var _ = Describe("Mount", func() {
 				},
 			}
 
-			mountManager, err := mm.New()
-			Expect(err).To(BeNil())
-
 			// when
-			Expect(mountManager.Update(configuration)).To(BeNil())
+			Expect(mountManager.Update(configuration)).To(HaveOccurred())
 
 			// then
 			_, mountMap, err := mm.GetMounts(dep)
 			Expect(err).To(BeNil())
 
+			Expect(mountMap).To(HaveKey(tmpFolder))
 			// we expect not to found the mount here
-			m, found := mountMap["/mnt"]
-			Expect(found).To(BeFalse())
-			Expect(m.Device).To(Equal(otherBlockDevice))
+			m, found := mountMap[tmpFolder]
+			Expect(found).To(BeTrue())
+			Expect(m.Device).To(Equal(loopDevices[0]))
 		})
 	})
 })
