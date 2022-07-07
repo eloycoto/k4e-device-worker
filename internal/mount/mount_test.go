@@ -14,6 +14,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 
 	"github.com/openshift/assisted-installer-agent/src/util"
+	"github.com/project-flotta/flotta-device-worker/internal/common"
 	mm "github.com/project-flotta/flotta-device-worker/internal/mount"
 	"github.com/project-flotta/flotta-operator/models"
 	"golang.org/x/sys/unix"
@@ -45,10 +46,11 @@ var _ = Describe("Mount", Ordered, func() {
 	}
 
 	BeforeAll(func() {
+		common.SkipIfRootless("Mount needs root access to run it")
 
 		deviceFolder, err = ioutil.TempDir("/tmp/", "lopdevices")
-
 		Expect(err).NotTo(HaveOccurred())
+
 		execCommand(fmt.Sprintf("dd if=/dev/zero of=/%s/image bs=1M count=128", deviceFolder))
 		execCommand(fmt.Sprintf("mkfs.ext4 /%s/image", deviceFolder))
 
@@ -82,7 +84,6 @@ var _ = Describe("Mount", Ordered, func() {
 			devFolder, err = ioutil.TempDir("/tmp/", "dev")
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(os.RemoveAll(devFolder)).To(BeNil())
 			Expect(os.MkdirAll(devFolder, os.ModePerm)).NotTo(HaveOccurred())
 
 			charDevicePath = fmt.Sprintf("%s/chardevice", devFolder)
@@ -95,12 +96,13 @@ var _ = Describe("Mount", Ordered, func() {
 			_, mountMap, err := mm.GetMounts(dep)
 			Expect(err).NotTo(HaveOccurred())
 			if mountVal, found := mountMap[tmpFolder]; found {
-				_ = unix.Unmount(mountVal.Directory, unix.MNT_FORCE)
+				err = unix.Unmount(mountVal.Directory, unix.MNT_FORCE)
+				Expect(err).NotTo(HaveOccurred())
 			}
 
 			depMock.AssertExpectations(GinkgoT())
 
-			Expect(os.RemoveAll(tmpFolder)).To(BeNil())
+			Expect(os.RemoveAll(tmpFolder)).NotTo(HaveOccurred())
 		})
 
 		It("mount block device without error", func() {
@@ -146,7 +148,7 @@ var _ = Describe("Mount", Ordered, func() {
 
 			// then
 			_, mounts, err := mm.GetMounts(dep)
-			Expect(err).To(BeNil())
+			Expect(err).NotTo(HaveOccurred())
 
 			// we expect not to found the mount here
 			_, found := mounts[mount.Directory]
@@ -191,7 +193,7 @@ var _ = Describe("Mount", Ordered, func() {
 			Expect(m.Device).To(Equal(loopDevices[1]))
 		})
 
-		FIt("Cannot mount on a folder twice", func() {
+		It("Cannot mount on a folder twice", func() {
 			// given
 			mounts := []*models.Mount{
 				{
@@ -252,9 +254,9 @@ var _ = Describe("Mount", Ordered, func() {
 
 			// then
 			_, mountMap, err := mm.GetMounts(dep)
-			Expect(err).To(BeNil())
-
+			Expect(err).NotTo(HaveOccurred())
 			Expect(mountMap).To(HaveKey(tmpFolder))
+
 			// we expect not to found the mount here
 			m, found := mountMap[tmpFolder]
 			Expect(found).To(BeTrue())

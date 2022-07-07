@@ -142,12 +142,7 @@ func isEqual(mount *models.Mount, other *models.Mount) bool {
 
 // TODO Question: what flags should be passed here?
 func mount(m *models.Mount) error {
-	err := unix.Mount(m.Device, m.Directory, m.Type, uintptr(0), m.Options)
-	fmt.Println("**********************************************")
-	fmt.Println(err)
-	fmt.Println("**********************************************")
-	fmt.Println("**********************************************")
-	return err
+	return unix.Mount(m.Device, m.Directory, m.Type, uintptr(0), m.Options)
 }
 
 // TODO: Question: should we force it?
