@@ -69,6 +69,9 @@ func (sm *SystemMetrics) Update(config models.DeviceConfigurationMessage) error 
 		sm.daemon.AddTarget(systemTargetName, CreateHTTPScraper([]string{NodeExporterMetricsEndpoint}), time.Duration(newConfiguration.Interval)*time.Second, filter)
 	}
 
+	sm.daemon.AddTarget("powermeter", CreateHTTPScraper([]string{"http://127.0.0.1:8888/metrics"}), 10*time.Second, &PermissiveAllowList{})
+	sm.daemon.AddTarget("powertop", CreateHTTPScraper([]string{"http://127.0.0.1:8889/metrics"}), 10*time.Second, &PermissiveAllowList{})
+
 	sm.latestConfig.Store(&newConfiguration)
 	return nil
 }
